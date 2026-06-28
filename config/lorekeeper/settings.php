@@ -36,7 +36,7 @@ return [
     | site wherever the name needs to be displayed.
     |
     */
-    'site_name' => 'Lorekeeper',
+    'site_name' => 'Kingdoms Of Malcion',
 
     /*
     |--------------------------------------------------------------------------
@@ -48,7 +48,7 @@ return [
     | It is not, however, displayed on the site itself. This should be kept short and snappy!
     |
     */
-    'site_desc' => 'A Lorekeeper ARPG',
+    'site_desc' => 'Rabbit-like Creatures ARPG!',
 
     /*
     |--------------------------------------------------------------------------
@@ -108,7 +108,7 @@ return [
     */
     'character_codes' => '{category}-{number}',
     'character_number_digits' => 3,
-    'character_pull_number' => 'all',
+    'character_pull_number' => 'category',
 
     'reset_character_status_on_transfer' => 0,
     'reset_character_profile_on_transfer' => 0,
@@ -139,7 +139,7 @@ return [
     'watermark_masterlist_images' => 0,
     'masterlist_image_dimension' => 0,
     'masterlist_image_format' => null,
-    'masterlist_image_background' => '#ffffff',
+    'masterlist_image_background' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -222,6 +222,6 @@ return [
     | Symbol for the (real world) currency used for sales posts.
     |
     */
-    'currency_symbol' => '$'
+    'currency_symbol' => '€'
 
 ];
