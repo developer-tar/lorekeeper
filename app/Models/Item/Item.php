@@ -49,6 +49,10 @@ class Item extends Model
         'uses' => 'nullable|between:3,250',
         'release' => 'nullable|between:3,100',
         'currency_quantity' => 'nullable|integer|min:1',
+        'placement_type' => 'nullable|string|max:50',
+        'homestead_room_type' => 'nullable|string|max:50',
+        'default_width' => 'nullable|integer|min:8|max:700',
+        'default_height' => 'nullable|integer|min:8|max:500',
     ];
 
     /**
@@ -65,6 +69,10 @@ class Item extends Model
         'uses' => 'nullable|between:3,250',
         'release' => 'nullable|between:3,100',
         'currency_quantity' => 'nullable|integer|min:1',
+        'placement_type' => 'nullable|string|max:50',
+        'homestead_room_type' => 'nullable|string|max:50',
+        'default_width' => 'nullable|integer|min:8|max:700',
+        'default_height' => 'nullable|integer|min:8|max:500',
     ];
 
     /**********************************************************************************************

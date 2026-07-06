@@ -46,6 +46,30 @@ return [
 
     'excluded_editor_item_tags' => ['room_slot', 'house_slot', 'sprite_slot'],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Placement Types
+    |--------------------------------------------------------------------------
+    |
+    | Valid placement_type values for homestead decor items (admin item form).
+    |
+    */
+    'placement_types' => [
+        'floor' => 'Floor (furniture)',
+        'decoration' => 'Decoration',
+        'exterior' => 'Exterior',
+        'wall' => 'Wallpaper',
+        'ceiling' => 'Ceiling',
+        'flooring' => 'Flooring',
+    ],
+
+    'homestead_room_types' => [
+        '' => 'Any room type',
+        'indoor' => 'Indoor rooms only',
+        'outdoor' => 'Outdoor houses only',
+        'both' => 'Indoor and outdoor',
+    ],
+
     'canvas_width' => 700,
     'canvas_height' => 500,
 
