@@ -150,6 +150,14 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Get the user's homestead room saves.
+     */
+    public function roomSaves()
+    {
+        return $this->hasMany('App\Models\Homestead\RoomSave');
+    }
+
+    /**
      * Get the user's rank data.
      */
     public function rank()

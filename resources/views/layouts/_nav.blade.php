@@ -46,6 +46,20 @@
                         </div>
                     </li>
                     <li class="nav-item dropdown">
+                        <a id="homesteadDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
+                            Homestead
+                        </a>
+
+                        <div class="dropdown-menu" aria-labelledby="homesteadDropdown">
+                            <a class="dropdown-item" href="{{ url('homestead/rooms') }}">
+                                Rooms
+                            </a>
+                            <a class="dropdown-item" href="{{ url('homestead/houses') }}">
+                                Houses
+                            </a>
+                        </div>
+                    </li>
+                    <li class="nav-item dropdown">
                         <a id="queueDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
                             Activity
                         </a>
