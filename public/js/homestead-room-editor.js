@@ -5,29 +5,207 @@
         this.canvasWidth = options.canvasWidth;
         this.canvasHeight = options.canvasHeight;
         this.catalog = options.catalog || {};
+        this.layout = {};
+        this.surfaceCanvasLayers = options.surfaceCanvasLayers || {};
         this.placements = [];
         this.placedCounts = {};
         this.selectedId = null;
         this.nextId = 1;
         this.scale = 1;
         this.dragState = null;
+        this.inventoryDrag = null;
+        this.isDirty = false;
+        this.placementIndex = {};
+        this.$placementNodes = {};
+        this.$inventoryByItemId = {};
+        this.dragRafId = null;
+        this.pendingDragPlacement = null;
+        this.resizeRafId = null;
 
         this.$wrap = $(options.canvasWrapSelector);
         this.$container = $(options.canvasContainerSelector);
         this.$stage = $(options.canvasStageSelector);
         this.$items = $(options.canvasItemsSelector);
+        this.$placeholder = $(options.canvasPlaceholderSelector || []);
+        this.$loading = $(options.canvasLoadingSelector || []);
+        this.$wallSurface = $(options.wallSurfaceSelector || []);
+        this.$floorSurface = $(options.floorSurfaceSelector || []);
         this.$controls = $(options.controlsSelector);
         this.$inventoryRoot = $(options.inventorySelector);
 
         this.bindEvents();
+        this.ensureStageDimensions();
         this.updateScale();
+        this.observeCanvasResize();
+        if (options.initialLayout) {
+            this.loadLayout(options.initialLayout);
+        }
         if (options.initialPlacements && options.initialPlacements.length) {
             this.loadPlacements(options.initialPlacements);
         } else {
             this.render();
             this.updateInventoryCounts();
+            this.applySurfaceLayers();
+            this.updateSurfaceSelection();
         }
+
+        this.hideLoading();
+        this.cacheInventoryElements();
+        this.markClean();
     }
+
+    HomesteadRoomEditor.prototype.syncPlacementIndex = function() {
+        this.placementIndex = {};
+        for (var i = 0; i < this.placements.length; i++) {
+            var placement = this.placements[i];
+            this.placementIndex[placement.id] = placement;
+        }
+    };
+
+    HomesteadRoomEditor.prototype.getPlacementById = function(placementId) {
+        return this.placementIndex[placementId] || null;
+    };
+
+    HomesteadRoomEditor.prototype.cacheInventoryElements = function() {
+        var self = this;
+        this.$inventoryByItemId = {};
+        this.$inventoryRoot.find('.homestead-editor-inventory-item').each(function() {
+            var itemId = parseInt($(this).data('item-id'), 10);
+            if (!self.$inventoryByItemId[itemId]) {
+                self.$inventoryByItemId[itemId] = $(this);
+            }
+        });
+    };
+
+    HomesteadRoomEditor.prototype.updatePlacementPosition = function(placement) {
+        var $node = this.$placementNodes[placement.id];
+        if ($node && $node.length) {
+            $node.css({
+                left: placement.x + 'px',
+                top: placement.y + 'px',
+            });
+        }
+    };
+
+    HomesteadRoomEditor.prototype.updateSelection = function() {
+        var self = this;
+        var selectedId = this.selectedId;
+
+        Object.keys(this.$placementNodes).forEach(function(placementId) {
+            self.$placementNodes[placementId].toggleClass(
+                'is-selected',
+                parseInt(placementId, 10) === selectedId
+            );
+        });
+
+        if (selectedId) {
+            this.$controls.removeClass('d-none');
+        } else {
+            this.$controls.addClass('d-none');
+        }
+    };
+
+    HomesteadRoomEditor.prototype.scheduleDragPositionUpdate = function(placement) {
+        var self = this;
+        this.pendingDragPlacement = placement;
+
+        if (this.dragRafId) {
+            return;
+        }
+
+        this.dragRafId = window.requestAnimationFrame(function() {
+            self.dragRafId = null;
+            if (self.pendingDragPlacement) {
+                self.updatePlacementPosition(self.pendingDragPlacement);
+                self.pendingDragPlacement = null;
+            }
+        });
+    };
+
+    HomesteadRoomEditor.prototype.markDirty = function() {
+        if (this.isDirty) return;
+        this.isDirty = true;
+        $(document).trigger('homesteadEditor:dirty');
+    };
+
+    HomesteadRoomEditor.prototype.markClean = function() {
+        this.isDirty = false;
+        $(document).trigger('homesteadEditor:clean');
+    };
+
+    HomesteadRoomEditor.prototype.hideLoading = function() {
+        if (this.$loading.length) {
+            this.$loading.addClass('d-none');
+        }
+    };
+
+    HomesteadRoomEditor.prototype.updateEmptyPlaceholder = function() {
+        if (!this.$placeholder.length) return;
+        this.$placeholder.toggleClass('d-none', this.placements.length > 0);
+    };
+
+    HomesteadRoomEditor.prototype.getLayoutPayload = function() {
+        return $.extend({}, this.layout);
+    };
+
+    HomesteadRoomEditor.prototype.loadLayout = function(initialLayout) {
+        var self = this;
+        this.layout = {};
+
+        Object.keys(initialLayout || {}).forEach(function(field) {
+            self.layout[field] = parseInt(initialLayout[field], 10);
+        });
+    };
+
+    HomesteadRoomEditor.prototype.applySurface = function(layoutField, itemId) {
+        if (!layoutField) return;
+
+        if (this.layout[layoutField] === itemId) {
+            delete this.layout[layoutField];
+        } else {
+            this.layout[layoutField] = itemId;
+        }
+
+        this.applySurfaceLayers();
+        this.updateSurfaceSelection();
+        this.markDirty();
+    };
+
+    HomesteadRoomEditor.prototype.applySurfaceLayers = function() {
+        var self = this;
+
+        this.$wallSurface.css({ backgroundImage: '', backgroundColor: '' });
+        this.$floorSurface.css({ backgroundImage: '', backgroundColor: '' });
+
+        Object.keys(this.layout).forEach(function(field) {
+            var itemId = self.layout[field];
+            var item = self.catalog[itemId];
+            if (!item || !item.hasImage || !item.imageUrl) return;
+
+            var layer = self.surfaceCanvasLayers[field] || 'floor';
+            var $target = layer === 'wall' ? self.$wallSurface : self.$floorSurface;
+
+            $target.css({
+                backgroundImage: 'url(' + item.imageUrl + ')',
+                backgroundSize: 'cover',
+                backgroundRepeat: 'repeat',
+                backgroundPosition: 'center center',
+            });
+        });
+    };
+
+    HomesteadRoomEditor.prototype.updateSurfaceSelection = function() {
+        var self = this;
+
+        this.$inventoryRoot.find('.homestead-editor-inventory-item.is-surface-selectable').each(function() {
+            var $item = $(this);
+            var layoutField = $item.data('layout-field');
+            var itemId = parseInt($item.data('item-id'), 10);
+            var isActive = layoutField && self.layout[layoutField] === itemId;
+
+            $item.toggleClass('is-selected', !!isActive);
+        });
+    };
 
     HomesteadRoomEditor.prototype.getPlacements = function() {
         return this.placements.slice();
@@ -80,8 +258,11 @@
             self.placedCounts[itemId] = (self.placedCounts[itemId] || 0) + 1;
         });
 
+        this.syncPlacementIndex();
         this.render();
         this.updateInventoryCounts();
+        this.applySurfaceLayers();
+        this.updateSurfaceSelection();
     };
 
     HomesteadRoomEditor.prototype.getAvailable = function(itemId) {
@@ -97,17 +278,83 @@
         };
     };
 
-    HomesteadRoomEditor.prototype.updateScale = function() {
-        if (!this.$container.length) return;
-        var width = this.$container.innerWidth();
-        var height = this.$container.innerHeight();
-        if (!width || !height) return;
-        this.scale = Math.min(width / this.canvasWidth, height / this.canvasHeight);
+    HomesteadRoomEditor.prototype.ensureStageDimensions = function() {
         this.$stage.css({
             width: this.canvasWidth + 'px',
             height: this.canvasHeight + 'px',
+        });
+    };
+
+    HomesteadRoomEditor.prototype.observeCanvasResize = function() {
+        var self = this;
+
+        setTimeout(function() {
+            self.updateScale();
+        }, 0);
+
+        setTimeout(function() {
+            self.updateScale();
+        }, 150);
+
+        if (typeof ResizeObserver !== 'undefined' && this.$container.length) {
+            if (this.resizeObserver) {
+                this.resizeObserver.disconnect();
+            }
+
+            this.resizeObserver = new ResizeObserver(function() {
+                if (self.resizeRafId) {
+                    return;
+                }
+
+                self.resizeRafId = window.requestAnimationFrame(function() {
+                    self.resizeRafId = null;
+                    self.updateScale();
+                });
+            });
+            this.resizeObserver.observe(this.$container[0]);
+        }
+    };
+
+    HomesteadRoomEditor.prototype.updateScale = function() {
+        if (!this.$container.length) return;
+
+        this.ensureStageDimensions();
+
+        var width = this.$container.innerWidth();
+        var height = this.$container.innerHeight();
+        if (!width || !height) {
+            this.scale = 1;
+            this.$stage.css({ transform: 'scale(1)' });
+            return;
+        }
+
+        this.scale = Math.min(width / this.canvasWidth, height / this.canvasHeight);
+        this.$stage.css({
             transform: 'scale(' + this.scale + ')',
         });
+    };
+
+    HomesteadRoomEditor.prototype.isPointInsideCanvas = function(clientX, clientY) {
+        if (!this.$stage.length) return false;
+        var rect = this.$stage[0].getBoundingClientRect();
+        return clientX >= rect.left && clientX <= rect.right
+            && clientY >= rect.top && clientY <= rect.bottom;
+    };
+
+    HomesteadRoomEditor.prototype.placeItemFromClientPoint = function(itemId, clientX, clientY) {
+        if (this.getAvailable(itemId) <= 0) return false;
+
+        var item = this.catalog[itemId];
+        if (!item) return false;
+
+        var coords = this.toCanvasCoords(clientX, clientY);
+        this.placeItem(
+            itemId,
+            coords.x - (item.width / 2),
+            coords.y - (item.height / 2)
+        );
+
+        return true;
     };
 
     HomesteadRoomEditor.prototype.toCanvasCoords = function(clientX, clientY) {
@@ -134,7 +381,7 @@
             if (placement.zIndex > maxZ) maxZ = placement.zIndex;
         });
 
-        this.placements.push({
+        var placement = {
             id: this.nextId++,
             itemId: itemId,
             x: pos.x,
@@ -142,106 +389,137 @@
             width: item.width,
             height: item.height,
             zIndex: maxZ + 1,
-        });
+        };
 
+        this.placements.push(placement);
+        this.placementIndex[placement.id] = placement;
         this.placedCounts[itemId] = (this.placedCounts[itemId] || 0) + 1;
-        this.render();
-        this.updateInventoryCounts();
+        this.renderPlacement(placement);
+        this.updateInventoryCounts([itemId]);
+        this.updateEmptyPlaceholder();
+        this.updateSurfaceSelection();
+        this.markDirty();
     };
 
     HomesteadRoomEditor.prototype.removePlacement = function(placementId) {
-        var placement = null;
-        this.placements.forEach(function(entry) {
-            if (entry.id === placementId) placement = entry;
-        });
+        var placement = this.getPlacementById(placementId);
         if (!placement) return;
 
+        var itemId = placement.itemId;
         this.placements = this.placements.filter(function(entry) {
             return entry.id !== placementId;
         });
-        this.placedCounts[placement.itemId] = Math.max(0, (this.placedCounts[placement.itemId] || 1) - 1);
+        delete this.placementIndex[placementId];
+        this.placedCounts[itemId] = Math.max(0, (this.placedCounts[itemId] || 1) - 1);
+
+        if (this.$placementNodes[placementId]) {
+            this.$placementNodes[placementId].remove();
+            delete this.$placementNodes[placementId];
+        }
 
         if (this.selectedId === placementId) {
             this.selectedId = null;
+            this.updateSelection();
         }
 
-        this.render();
-        this.updateInventoryCounts();
+        this.updateInventoryCounts([itemId]);
+        this.updateEmptyPlaceholder();
+        this.updateSurfaceSelection();
+        this.markDirty();
     };
 
     HomesteadRoomEditor.prototype.selectPlacement = function(placementId) {
         this.selectedId = placementId;
-        this.render();
+        this.updateSelection();
     };
 
     HomesteadRoomEditor.prototype.clearSelection = function() {
         this.selectedId = null;
-        this.render();
+        this.updateSelection();
     };
 
     HomesteadRoomEditor.prototype.adjustZIndex = function(placementId, delta) {
-        var placement = null;
-        this.placements.forEach(function(entry) {
-            if (entry.id === placementId) placement = entry;
-        });
+        var placement = this.getPlacementById(placementId);
         if (!placement) return;
 
         placement.zIndex = Math.max(1, placement.zIndex + delta);
         this.render();
+        this.markDirty();
+    };
+
+    HomesteadRoomEditor.prototype.createPlacementNode = function(placement) {
+        var item = this.catalog[placement.itemId];
+        if (!item) return null;
+
+        var $node = $('<div class="homestead-editor-placed-item"></div>');
+        $node.attr({
+            'data-placement-id': placement.id,
+            'data-item-id': placement.itemId,
+        });
+        $node.css({
+            left: placement.x + 'px',
+            top: placement.y + 'px',
+            width: placement.width + 'px',
+            height: placement.height + 'px',
+            zIndex: placement.zIndex,
+        });
+
+        if (this.selectedId === placement.id) {
+            $node.addClass('is-selected');
+        }
+
+        if (item.hasImage && item.imageUrl) {
+            $('<img>', {
+                src: item.imageUrl,
+                alt: item.name,
+                draggable: false,
+                loading: 'lazy',
+            }).appendTo($node);
+        } else {
+            $('<div class="homestead-editor-placed-item-fallback"><i class="fas fa-cube"></i></div>').appendTo($node);
+        }
+
+        return $node;
+    };
+
+    HomesteadRoomEditor.prototype.renderPlacement = function(placement) {
+        var $node = this.createPlacementNode(placement);
+        if (!$node) return;
+
+        this.$placementNodes[placement.id] = $node;
+        this.$items.append($node);
     };
 
     HomesteadRoomEditor.prototype.render = function() {
         var self = this;
         this.$items.empty();
+        this.$placementNodes = {};
 
         this.placements.slice().sort(function(a, b) {
             return a.zIndex - b.zIndex;
         }).forEach(function(placement) {
-            var item = self.catalog[placement.itemId];
-            if (!item) return;
-
-            var $node = $('<div class="homestead-editor-placed-item"></div>');
-            $node.attr({
-                'data-placement-id': placement.id,
-                'data-item-id': placement.itemId,
-            });
-            $node.css({
-                left: placement.x + 'px',
-                top: placement.y + 'px',
-                width: placement.width + 'px',
-                height: placement.height + 'px',
-                zIndex: placement.zIndex,
-            });
-
-            if (self.selectedId === placement.id) {
-                $node.addClass('is-selected');
-            }
-
-            if (item.hasImage && item.imageUrl) {
-                $('<img>', {
-                    src: item.imageUrl,
-                    alt: item.name,
-                    draggable: false,
-                }).appendTo($node);
-            } else {
-                $('<div class="homestead-editor-placed-item-fallback"><i class="fas fa-cube"></i></div>').appendTo($node);
-            }
-
-            self.$items.append($node);
+            self.renderPlacement(placement);
         });
 
-        if (this.selectedId) {
-            this.$controls.removeClass('d-none');
-        } else {
-            this.$controls.addClass('d-none');
-        }
+        this.updateSelection();
+        this.updateEmptyPlaceholder();
     };
 
-    HomesteadRoomEditor.prototype.updateInventoryCounts = function() {
+    HomesteadRoomEditor.prototype.updateInventoryCounts = function(itemIds) {
         var self = this;
-        this.$inventoryRoot.find('.homestead-editor-inventory-item.is-placeable').each(function() {
-            var $item = $(this);
-            var itemId = parseInt($item.data('item-id'), 10);
+        var ids = itemIds;
+
+        if (!ids || !ids.length) {
+            ids = [];
+            this.$inventoryRoot.find('.homestead-editor-inventory-item.is-placeable').each(function() {
+                ids.push(parseInt($(this).data('item-id'), 10));
+            });
+        }
+
+        ids.forEach(function(itemId) {
+            var $item = self.$inventoryByItemId[itemId];
+            if (!$item || !$item.length || !$item.hasClass('is-placeable')) return;
+
             var available = self.getAvailable(itemId);
             var total = self.catalog[itemId] ? self.catalog[itemId].quantity : 0;
             var placed = self.placedCounts[itemId] || 0;
@@ -267,7 +545,52 @@
             e.preventDefault();
             var $item = $(this);
             if ($item.hasClass('is-unavailable')) return;
+            if (self.inventoryDrag && self.inventoryDrag.moved) return;
             self.placeItem(parseInt($item.data('item-id'), 10));
+        });
+
+        this.$inventoryRoot.on('mousedown touchstart', '.homestead-editor-inventory-item.is-placeable', function(e) {
+            if (e.type === 'mousedown' && e.which !== 1) return;
+            var $item = $(this);
+            if ($item.hasClass('is-unavailable')) return;
+
+            var point = self.getEventPoint(e);
+            self.inventoryDrag = {
+                itemId: parseInt($item.data('item-id'), 10),
+                startX: point.x,
+                startY: point.y,
+                moved: false,
+            };
+        });
+
+        $(document).on('mousemove.homesteadEditorInventory touchmove.homesteadEditorInventory', function(e) {
+            if (!self.inventoryDrag) return;
+
+            var point = self.getEventPoint(e);
+            if (Math.abs(point.x - self.inventoryDrag.startX) > 4
+                || Math.abs(point.y - self.inventoryDrag.startY) > 4) {
+                self.inventoryDrag.moved = true;
+            }
+        });
+
+        $(document).on('mouseup.homesteadEditorInventory touchend.homesteadEditorInventory touchcancel.homesteadEditorInventory', function(e) {
+            if (!self.inventoryDrag) return;
+
+            if (self.inventoryDrag.moved) {
+                var point = self.getEventPoint(e);
+                if (self.isPointInsideCanvas(point.x, point.y)) {
+                    self.placeItemFromClientPoint(self.inventoryDrag.itemId, point.x, point.y);
+                }
+            }
+
+            self.inventoryDrag = null;
+        });
+
+        this.$inventoryRoot.on('click', '.homestead-editor-inventory-item.is-surface-selectable', function(e) {
+            e.preventDefault();
+            var $item = $(this);
+            if ($item.hasClass('is-unavailable')) return;
+            self.applySurface($item.data('layout-field'), parseInt($item.data('item-id'), 10));
         });
 
         this.$items.on('mousedown touchstart', '.homestead-editor-placed-item', function(e) {
@@ -276,10 +599,7 @@
             e.stopPropagation();
 
             var placementId = parseInt($(this).data('placement-id'), 10);
-            var placement = null;
-            self.placements.forEach(function(entry) {
-                if (entry.id === placementId) placement = entry;
-            });
+            var placement = self.getPlacementById(placementId);
             if (!placement) return;
 
             var point = self.getEventPoint(e);
@@ -290,6 +610,8 @@
                 placementId: placementId,
                 offsetX: coords.x - placement.x,
                 offsetY: coords.y - placement.y,
+                startX: placement.x,
+                startY: placement.y,
             };
         });
 
@@ -297,10 +619,7 @@
             if (!self.dragState) return;
             e.preventDefault();
 
-            var placement = null;
-            self.placements.forEach(function(entry) {
-                if (entry.id === self.dragState.placementId) placement = entry;
-            });
+            var placement = self.getPlacementById(self.dragState.placementId);
             if (!placement) return;
 
             var point = self.getEventPoint(e);
@@ -314,10 +633,25 @@
 
             placement.x = pos.x;
             placement.y = pos.y;
-            self.render();
+            self.scheduleDragPositionUpdate(placement);
         });
 
         $(document).on('mouseup.homesteadEditor touchend.homesteadEditor touchcancel.homesteadEditor', function() {
+            if (self.dragState) {
+                var placement = self.getPlacementById(self.dragState.placementId);
+
+                if (placement
+                    && (placement.x !== self.dragState.startX || placement.y !== self.dragState.startY)) {
+                    self.markDirty();
+                }
+            }
+
+            self.pendingDragPlacement = null;
+            if (self.dragRafId) {
+                window.cancelAnimationFrame(self.dragRafId);
+                self.dragRafId = null;
+            }
+
             self.dragState = null;
         });
 
@@ -370,4 +704,5 @@
     };
 
     window.HomesteadRoomEditor = HomesteadRoomEditor;
+    window.HomesteadEditor = HomesteadRoomEditor;
 })(jQuery);

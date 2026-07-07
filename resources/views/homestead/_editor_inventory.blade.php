@@ -18,15 +18,21 @@
                 @if(count($inventory[$groupKey]))
                     <div class="homestead-editor-inventory-grid">
                         @foreach($inventory[$groupKey] as $entry)
-                            <div class="homestead-editor-inventory-item {{ $groupKey === 'furniture' ? 'is-placeable' : '' }} {{ $entry->available <= 0 ? 'is-unavailable' : '' }}"
+                            @php
+                                $layoutField = ($groupKey === 'surfaces' && isset($surfaceLayoutFields))
+                                    ? ($surfaceLayoutFields[$entry->item->placement_type] ?? null)
+                                    : null;
+                            @endphp
+                            <div class="homestead-editor-inventory-item {{ ($placeableGroup ?? 'furniture') === $groupKey ? 'is-placeable' : '' }} {{ $layoutField ? 'is-surface-selectable' : '' }} {{ ($placeableGroup ?? 'furniture') === $groupKey && $entry->available <= 0 ? 'is-unavailable' : '' }}"
                                  data-item-id="{{ $entry->item->id }}"
                                  data-placement-type="{{ $entry->item->placement_type }}"
+                                 data-layout-field="{{ $layoutField }}"
                                  data-item-width="{{ $entry->item->default_width ?: 64 }}"
                                  data-item-height="{{ $entry->item->default_height ?: 64 }}"
-                                 title="{{ $entry->item->name }}">
+                                 title="{{ $entry->item->name }}{{ ($placeableGroup ?? 'furniture') === $groupKey && $entry->available <= 0 ? ' (all placed)' : '' }}">
                                 <div class="homestead-editor-inventory-item-image">
                                     @if($entry->item->has_image)
-                                        <img src="{{ $entry->item->imageUrl }}" alt="{{ $entry->item->name }}">
+                                        <img src="{{ $entry->item->imageUrl }}" alt="{{ $entry->item->name }}" loading="lazy" decoding="async">
                                     @else
                                         <i class="fas fa-cube text-muted"></i>
                                     @endif
@@ -44,7 +50,10 @@
                     </div>
                 @else
                     <div class="homestead-editor-inventory-empty">
-                        <p class="small text-muted mb-0">No {{ strtolower($groupLabel) }} items in your inventory.</p>
+                        <p class="small text-muted mb-2">No {{ strtolower($groupLabel) }} items in your inventory.</p>
+                        @if(!empty($emptyInventoryHint))
+                            <p class="small text-muted mb-0">{{ $emptyInventoryHint }}</p>
+                        @endif
                     </div>
                 @endif
             </div>

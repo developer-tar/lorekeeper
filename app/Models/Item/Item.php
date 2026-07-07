@@ -151,12 +151,7 @@ class Item extends Model
      */
     public function scopePlaceableInHomestead($query, $roomType = 'indoor')
     {
-        $placementTypes = collect(Config::get('lorekeeper.homestead.editor_inventory_groups', []))
-            ->flatten()
-            ->unique()
-            ->filter()
-            ->values()
-            ->all();
+        $placementTypes = \App\Services\Homestead\HomesteadConfig::placementTypes($roomType);
 
         $excludedTags = Config::get('lorekeeper.homestead.excluded_editor_item_tags', []);
 

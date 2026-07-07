@@ -118,6 +118,14 @@ class RoomSave extends Model
         return $query->where('user_id', $userId);
     }
 
+    /**
+     * Scope a query to a specific space type.
+     */
+    public function scopeOfType($query, $roomType)
+    {
+        return $query->where('room_type', $roomType);
+    }
+
     /**********************************************************************************************
 
         ACCESSORS
@@ -151,8 +159,26 @@ class RoomSave extends Model
      */
     public function getUrlAttribute()
     {
-        $segment = $this->room_type === self::TYPE_INDOOR ? 'rooms' : 'houses';
+        return url('homestead/' . $this->list_segment);
+    }
 
-        return url('homestead/' . $segment);
+    /**
+     * Gets the URL of the shared homestead editor for this space.
+     *
+     * @return string
+     */
+    public function getEditorUrlAttribute()
+    {
+        return url('homestead/' . $this->list_segment . '/' . $this->id . '/editor');
+    }
+
+    /**
+     * Gets the list URL segment for this space (rooms or houses).
+     *
+     * @return string
+     */
+    public function getListSegmentAttribute()
+    {
+        return \App\Services\Homestead\HomesteadConfig::listSegment($this->room_type);
     }
 }

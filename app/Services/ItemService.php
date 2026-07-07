@@ -310,7 +310,7 @@ class ItemService extends Service
             }
 
             $validRoomTypes = array_keys(Config::get('lorekeeper.homestead.homestead_room_types', []));
-            if(!array_key_exists($data['homestead_room_type'] ?? '', $validRoomTypes)) {
+            if(!in_array($data['homestead_room_type'] ?? '', $validRoomTypes, true)) {
                 throw new \Exception('The selected homestead room type is invalid.');
             }
 
