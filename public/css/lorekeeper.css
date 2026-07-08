@@ -703,16 +703,13 @@ tr.accountbound {
     z-index: 1;
 }
 
-.homestead-editor-canvas-room-bg {
+.homestead-editor-canvas-base-bg {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 55%, #dee2e6 100%);
 }
 
-.homestead-editor-canvas-house-bg {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, #87ceeb 0%, #b3e5fc 42%, #7cb342 42%, #558b2f 100%);
+.homestead-editor-canvas-room-bg {
+    background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 55%, #dee2e6 100%);
 }
 
 .homestead-editor-canvas-wall-surface,
@@ -772,6 +769,53 @@ tr.accountbound {
 .homestead-editor-placed-item.is-selected {
     border-color: #3490dc;
     box-shadow: 0 0 0 2px rgba(52, 144, 220, 0.35);
+}
+
+.homestead-editor-placement-layer-controls {
+    position: absolute;
+    top: -26px;
+    right: 0;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    z-index: 20;
+    pointer-events: auto;
+}
+
+.homestead-editor-placed-item.is-selected .homestead-editor-placement-layer-controls {
+    display: flex;
+}
+
+.homestead-editor-layer-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #495057;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.homestead-editor-layer-btn:hover:not(:disabled),
+.homestead-editor-layer-btn:focus:not(:disabled) {
+    background: #fff;
+    border-color: #3490dc;
+    color: #3490dc;
+    outline: none;
+}
+
+.homestead-editor-layer-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.homestead-editor-selection-controls .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .homestead-editor-inventory-item.is-placeable,

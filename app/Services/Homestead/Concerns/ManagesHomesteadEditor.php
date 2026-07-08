@@ -84,6 +84,7 @@ trait ManagesHomesteadEditor
             'initialPlacements' => $this->formatPlacementsForEditor($room->placements),
             'initialLayout' => $this->getInitialLayoutForEditor($room),
             'surfaceLayoutFields' => HomesteadConfig::surfaceLayoutFields($room->room_type),
+            'canvasBackground' => HomesteadConfig::canvasBackgroundAttributes($room->room_type),
             'canvasWidth' => $canvas['width'],
             'canvasHeight' => $canvas['height'],
         ];

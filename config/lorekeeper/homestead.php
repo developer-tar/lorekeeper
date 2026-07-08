@@ -21,14 +21,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Staff Slot Bypass
+    | Unlimited Slot Permission
     |--------------------------------------------------------------------------
     |
-    | When true, staff members (admin rank or users with staff powers) are not
-    | limited by homestead room/house slot counts.
+    | Rank power key (from config/lorekeeper/powers.php) that grants unlimited
+    | homestead room/house creation. Attach this power to ranks via
+    | Admin → User Ranks. The admin rank always has all powers.
+    |
+    | Set to null to disable rank-based unlimited slots entirely.
     |
     */
-    'bypass_slot_limits_for_staff' => true,
+    'unlimited_slots_power' => 'unlimited_homestead_slots',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Unlimited Slots UI Label
+    |--------------------------------------------------------------------------
+    |
+    | Shown on the rooms/houses list when the user bypasses slot limits.
+    |
+    */
+    'unlimited_slots_label' => 'Unlimited slots (rank permission)',
 
     /*
     |--------------------------------------------------------------------------
@@ -82,11 +95,10 @@ return [
     | Shared homestead editor UI differs by indoor room vs outdoor house.
     |
     */
-    'editor' => [
+        'editor' => [
         'indoor' => [
             'label' => 'Room Editor',
             'list_segment' => 'rooms',
-            'canvas_bg_class' => 'homestead-editor-canvas-room-bg',
             'placeable_group' => 'furniture',
             'help_text' => 'Click or drag furniture onto the canvas. Drag placed items to move. Use Surfaces for wallpaper and flooring. Save to keep your layout.',
             'save_message' => 'Room layout saved successfully.',
@@ -97,13 +109,39 @@ return [
         'outdoor' => [
             'label' => 'House Editor',
             'list_segment' => 'houses',
-            'canvas_bg_class' => 'homestead-editor-canvas-house-bg',
             'placeable_group' => 'furniture',
             'help_text' => 'Click or drag furniture onto the canvas. Drag placed items to move. Use Surfaces for ground cover. Save to keep your layout.',
             'save_message' => 'House layout saved successfully.',
             'invalid_item_message' => 'One or more placed items cannot be used in this house.',
             'boundary_message' => 'One or more items are outside the house boundaries.',
             'empty_inventory_hint' => 'You need homestead decoration items in your inventory. Items must be configured for outdoor use before they appear here.',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Editor Canvas Backgrounds
+    |--------------------------------------------------------------------------
+    |
+    | Default preview backgrounds for the homestead editor canvas, per space
+    | type. Indoor rooms keep the legacy CSS class for unchanged behavior.
+    |
+    | Outdoor houses support:
+    |   - gradient: CSS gradient used when no admin image is uploaded
+    |   - site_image_key: key from config/lorekeeper/image_files.php; when the
+    |     file exists it overrides the gradient (Admin → Site Images)
+    |
+    */
+    'canvas_backgrounds' => [
+        'indoor' => [
+            'css_class' => 'homestead-editor-canvas-room-bg',
+        ],
+        'outdoor' => [
+            'gradient' => 'linear-gradient(180deg, #87ceeb 0%, #b3e5fc 42%, #7cb342 42%, #558b2f 100%)',
+            'site_image_key' => 'homestead_house_editor_bg',
+            'background_size' => 'cover',
+            'background_position' => 'center center',
+            'background_repeat' => 'no-repeat',
         ],
     ],
 

@@ -103,6 +103,8 @@
         } else {
             this.$controls.addClass('d-none');
         }
+
+        this.updateLayerControlsState();
     };
 
     HomesteadRoomEditor.prototype.scheduleDragPositionUpdate = function(placement) {
@@ -258,6 +260,7 @@
             self.placedCounts[itemId] = (self.placedCounts[itemId] || 0) + 1;
         });
 
+        this.normalizeZIndices();
         this.syncPlacementIndex();
         this.render();
         this.updateInventoryCounts();
@@ -438,13 +441,115 @@
         this.updateSelection();
     };
 
-    HomesteadRoomEditor.prototype.adjustZIndex = function(placementId, delta) {
-        var placement = this.getPlacementById(placementId);
-        if (!placement) return;
+    HomesteadRoomEditor.prototype.getSortedPlacements = function() {
+        return this.placements.slice().sort(function(a, b) {
+            if (a.zIndex !== b.zIndex) {
+                return a.zIndex - b.zIndex;
+            }
+            return a.id - b.id;
+        });
+    };
 
-        placement.zIndex = Math.max(1, placement.zIndex + delta);
-        this.render();
+    HomesteadRoomEditor.prototype.findPlacementSortIndex = function(sorted, placementId) {
+        for (var i = 0; i < sorted.length; i++) {
+            if (sorted[i].id === placementId) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    HomesteadRoomEditor.prototype.normalizeZIndices = function() {
+        var sorted = this.getSortedPlacements();
+        this.applyZOrderFromSorted(sorted);
+    };
+
+    HomesteadRoomEditor.prototype.applyZOrderFromSorted = function(sorted) {
+        for (var i = 0; i < sorted.length; i++) {
+            sorted[i].zIndex = 10 + i;
+            this.updatePlacementZIndex(sorted[i]);
+        }
+
+        for (var j = 0; j < sorted.length; j++) {
+            var $node = this.$placementNodes[sorted[j].id];
+            if ($node && $node.length) {
+                this.$items.append($node);
+            }
+        }
+    };
+
+    HomesteadRoomEditor.prototype.updatePlacementZIndex = function(placement) {
+        var $node = this.$placementNodes[placement.id];
+        if ($node && $node.length) {
+            $node.css('zIndex', placement.zIndex);
+        }
+    };
+
+    HomesteadRoomEditor.prototype.moveLayerForward = function(placementId) {
+        var sorted = this.getSortedPlacements();
+        var index = this.findPlacementSortIndex(sorted, placementId);
+        if (index < 0 || index >= sorted.length - 1) {
+            return false;
+        }
+
+        var moved = sorted[index + 1];
+        sorted[index + 1] = sorted[index];
+        sorted[index] = moved;
+
+        this.applyZOrderFromSorted(sorted);
+        this.updateLayerControlsState();
         this.markDirty();
+        return true;
+    };
+
+    HomesteadRoomEditor.prototype.moveLayerBackward = function(placementId) {
+        var sorted = this.getSortedPlacements();
+        var index = this.findPlacementSortIndex(sorted, placementId);
+        if (index <= 0) {
+            return false;
+        }
+
+        var moved = sorted[index - 1];
+        sorted[index - 1] = sorted[index];
+        sorted[index] = moved;
+
+        this.applyZOrderFromSorted(sorted);
+        this.updateLayerControlsState();
+        this.markDirty();
+        return true;
+    };
+
+    HomesteadRoomEditor.prototype.getLayerAction = function($button) {
+        return $button.attr('data-layer-action') || $button.data('layerAction');
+    };
+
+    HomesteadRoomEditor.prototype.updateLayerControlsState = function() {
+        var self = this;
+        var sorted = this.getSortedPlacements();
+        var index = this.selectedId
+            ? this.findPlacementSortIndex(sorted, this.selectedId)
+            : -1;
+        var canForward = index >= 0 && index < sorted.length - 1;
+        var canBackward = index > 0;
+
+        if (this.selectedId) {
+            var $selected = this.$placementNodes[this.selectedId];
+            if ($selected && $selected.length) {
+                $selected.find('[data-layer-action="forward"]').prop('disabled', !canForward);
+                $selected.find('[data-layer-action="backward"]').prop('disabled', !canBackward);
+            }
+        }
+
+        this.$controls.find('[data-editor-action="forward"]').prop('disabled', !canForward);
+        this.$controls.find('[data-editor-action="backward"]').prop('disabled', !canBackward);
+    };
+
+    HomesteadRoomEditor.prototype.handleLayerAction = function(placementId, action) {
+        if (action === 'forward') {
+            this.moveLayerForward(placementId);
+        } else if (action === 'backward') {
+            this.moveLayerBackward(placementId);
+        }
     };
 
     HomesteadRoomEditor.prototype.createPlacementNode = function(placement) {
@@ -479,6 +584,13 @@
             $('<div class="homestead-editor-placed-item-fallback"><i class="fas fa-cube"></i></div>').appendTo($node);
         }
 
+        var $layerControls = $('<div class="homestead-editor-placement-layer-controls" role="toolbar" aria-label="Layer controls"></div>');
+        $layerControls.append(
+            $('<button type="button" class="homestead-editor-layer-btn" data-layer-action="forward" title="Move Forward" aria-label="Move Forward"><i class="fas fa-arrow-up"></i></button>'),
+            $('<button type="button" class="homestead-editor-layer-btn" data-layer-action="backward" title="Move Backward" aria-label="Move Backward"><i class="fas fa-arrow-down"></i></button>')
+        );
+        $node.append($layerControls);
+
         return $node;
     };
 
@@ -503,6 +615,7 @@
 
         this.updateSelection();
         this.updateEmptyPlaceholder();
+        this.updateLayerControlsState();
     };
 
     HomesteadRoomEditor.prototype.updateInventoryCounts = function(itemIds) {
@@ -594,6 +707,9 @@
         });
 
         this.$items.on('mousedown touchstart', '.homestead-editor-placed-item', function(e) {
+            if ($(e.target).closest('.homestead-editor-layer-btn').length) {
+                return;
+            }
             if (e.type === 'mousedown' && e.which !== 1) return;
             e.preventDefault();
             e.stopPropagation();
@@ -660,17 +776,33 @@
             self.clearSelection();
         });
 
+        this.$items.on('mousedown touchstart', '.homestead-editor-layer-btn', function(e) {
+            e.stopPropagation();
+        });
+
+        this.$items.on('click', '.homestead-editor-layer-btn', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if ($(this).prop('disabled')) {
+                return;
+            }
+
+            var placementId = parseInt($(this).closest('.homestead-editor-placed-item').data('placement-id'), 10);
+            self.handleLayerAction(placementId, self.getLayerAction($(this)));
+        });
+
         this.$controls.on('click', '[data-editor-action]', function(e) {
             e.preventDefault();
-            if (!self.selectedId) return;
+            if (!self.selectedId || $(this).prop('disabled')) return;
 
-            var action = $(this).data('editor-action');
+            var action = $(this).attr('data-editor-action') || $(this).data('editorAction');
             if (action === 'remove') {
                 self.removePlacement(self.selectedId);
             } else if (action === 'forward') {
-                self.adjustZIndex(self.selectedId, 1);
+                self.moveLayerForward(self.selectedId);
             } else if (action === 'backward') {
-                self.adjustZIndex(self.selectedId, -1);
+                self.moveLayerBackward(self.selectedId);
             }
         });
 

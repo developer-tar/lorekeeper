@@ -20,7 +20,7 @@
 <p class="mb-3">
     {{ $labels['description'] }}
     @if($slots['unlimited'])
-        You have <strong>{{ $slots['used'] }}</strong> {{ $labels['singular'] }}(s). <span class="text-muted">(Staff: unlimited slots)</span>
+        You have <strong>{{ $slots['used'] }}</strong> {{ $labels['singular'] }}(s). <span class="text-muted">({{ \App\Services\Homestead\HomesteadConfig::unlimitedSlotsLabel() }})</span>
     @else
         You are using <strong>{{ $slots['used'] }}</strong> of <strong>{{ $slots['max'] }}</strong> {{ $labels['singular'] }} slots.
     @endif

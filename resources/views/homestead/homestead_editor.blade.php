@@ -13,10 +13,10 @@
         </div>
         <div class="homestead-editor-toolbar-actions d-flex flex-wrap align-items-center">
             <div class="homestead-editor-selection-controls btn-group btn-group-sm mr-2 mb-2 d-none" id="homesteadEditorControls">
-                <button type="button" class="btn btn-outline-secondary" data-editor-action="backward" title="Send backward">
+                <button type="button" class="btn btn-outline-secondary" data-editor-action="backward" title="Move Backward">
                     <i class="fas fa-arrow-down"></i>
                 </button>
-                <button type="button" class="btn btn-outline-secondary" data-editor-action="forward" title="Bring forward">
+                <button type="button" class="btn btn-outline-secondary" data-editor-action="forward" title="Move Forward">
                     <i class="fas fa-arrow-up"></i>
                 </button>
                 <button type="button" class="btn btn-outline-danger" data-editor-action="remove" title="Remove item">
@@ -46,7 +46,7 @@
                 </div>
                 <div class="homestead-editor-canvas-container" id="homesteadEditorCanvasContainer">
                     <div class="homestead-editor-canvas-stage" id="homesteadEditorCanvasStage">
-                        <div class="{{ $editor['canvas_bg_class'] }}"></div>
+                        <div class="{{ $canvasBackground['class'] }}"@if(!empty($canvasBackground['style'])) style="{{ $canvasBackground['style'] }}"@endif></div>
                         <div class="homestead-editor-canvas-wall-surface" id="homesteadEditorWallSurface"></div>
                         <div class="homestead-editor-canvas-floor-surface" id="homesteadEditorFloorSurface"></div>
                         <div class="homestead-editor-canvas-items" id="homesteadEditorCanvasItems"></div>

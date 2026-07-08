@@ -140,4 +140,102 @@ class HomesteadConfig
             ? (int) Config::get('lorekeeper.homestead.base_indoor_slots', 1)
             : (int) Config::get('lorekeeper.homestead.base_outdoor_slots', 1);
     }
+
+    /**
+     * Rank power key that grants unlimited homestead slots, or null when disabled.
+     *
+     * @return string|null
+     */
+    public static function unlimitedSlotsPower()
+    {
+        $power = Config::get('lorekeeper.homestead.unlimited_slots_power');
+
+        return is_string($power) && $power !== '' ? $power : null;
+    }
+
+    /**
+     * UI label shown when a user has unlimited homestead slots.
+     *
+     * @return string
+     */
+    public static function unlimitedSlotsLabel()
+    {
+        return Config::get('lorekeeper.homestead.unlimited_slots_label', 'Unlimited slots');
+    }
+
+    /**
+     * Resolved canvas background attributes for the homestead editor.
+     *
+     * @param  string  $roomType
+     * @return array{class: string, style: string}
+     */
+    public static function canvasBackgroundAttributes($roomType)
+    {
+        $config = Config::get('lorekeeper.homestead.canvas_backgrounds.' . $roomType, []);
+        $baseClass = 'homestead-editor-canvas-base-bg';
+
+        if (!empty($config['css_class'])) {
+            return [
+                'class' => trim($baseClass . ' ' . $config['css_class']),
+                'style' => '',
+            ];
+        }
+
+        $style = static::resolveCanvasBackgroundStyle($config);
+
+        return [
+            'class' => $baseClass,
+            'style' => $style,
+        ];
+    }
+
+    /**
+     * Build inline CSS for a configurable canvas background.
+     *
+     * @param  array  $config
+     * @return string
+     */
+    protected static function resolveCanvasBackgroundStyle(array $config)
+    {
+        $imageUrl = static::resolveSiteImageUrl($config['site_image_key'] ?? null);
+        if ($imageUrl) {
+            return sprintf(
+                'background-image: url(%s); background-size: %s; background-position: %s; background-repeat: %s;',
+                $imageUrl,
+                $config['background_size'] ?? 'cover',
+                $config['background_position'] ?? 'center center',
+                $config['background_repeat'] ?? 'no-repeat'
+            );
+        }
+
+        if (!empty($config['gradient'])) {
+            return 'background: ' . $config['gradient'] . ';';
+        }
+
+        if (!empty($config['color'])) {
+            return 'background-color: ' . $config['color'] . ';';
+        }
+
+        return '';
+    }
+
+    /**
+     * Resolve a public asset URL for an admin-managed site image key.
+     *
+     * @param  string|null  $key
+     * @return string|null
+     */
+    protected static function resolveSiteImageUrl($key)
+    {
+        if (!$key) {
+            return null;
+        }
+
+        $filename = Config::get('lorekeeper.image_files.' . $key . '.filename');
+        if (!$filename || !file_exists(public_path('images/' . $filename))) {
+            return null;
+        }
+
+        return asset('images/' . $filename);
+    }
 }

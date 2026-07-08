@@ -2,7 +2,6 @@
 
 namespace App\Services\Homestead\Concerns;
 
-use Config;
 use App\Services\Homestead\HomesteadConfig;
 use App\Models\Homestead\RoomSave;
 use App\Models\User\UserItem;
@@ -93,7 +92,8 @@ trait ManagesHomesteadSlots
      */
     protected function bypassesSlotLimits($user)
     {
-        return Config::get('lorekeeper.homestead.bypass_slot_limits_for_staff', true)
-            && $user->isStaff;
+        $power = HomesteadConfig::unlimitedSlotsPower();
+
+        return $power && $user->hasPower($power);
     }
 }
