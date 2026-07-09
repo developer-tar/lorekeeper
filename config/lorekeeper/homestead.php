@@ -13,11 +13,14 @@ return [
 
     'base_indoor_slots' => 1,
     'base_outdoor_slots' => 1,
+    'base_sprite_slots' => 1,
 
     'slot_tags' => [
         'indoor' => 'room_slot',
         'outdoor' => 'house_slot',
     ],
+
+    'sprite_slot_tag' => 'sprite_slot',
 
     /*
     |--------------------------------------------------------------------------
@@ -85,6 +88,15 @@ return [
             'deleted_message' => 'House deleted successfully.',
             'delete_confirm' => 'You are about to delete the house <strong>:name</strong>. This will also remove its layout and furniture placements. Are you sure?',
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Character Sprite Slots
+    |--------------------------------------------------------------------------
+    */
+    'sprite_slots' => [
+        'slot_limit_message' => 'This character has reached its sprite slot limit. Activate a sprite slot item from your inventory to unlock more sprites.',
     ],
 
     /*
@@ -161,7 +173,7 @@ return [
         ],
         'outdoor' => [
             'furniture' => ['floor', 'decoration', 'exterior'],
-            'surfaces' => ['flooring', 'floor'],
+            'surfaces' => ['flooring', 'floor', 'wall', 'exterior', 'roof'],
         ],
     ],
 
@@ -186,10 +198,19 @@ return [
         'outdoor' => [
             'flooring' => 'flooring_item_id',
             'floor' => 'flooring_item_id',
+            'wall' => 'exterior_wall_item_id',
+            'exterior' => 'exterior_wall_item_id',
+            'roof' => 'roof_item_id',
         ],
     ],
 
+    'surface_editor_notes' => [
+        'indoor' => 'Wall and ceiling items share one wallpaper slot. Flooring and floor items share one flooring slot.',
+        'outdoor' => 'Ground cover and floor items share one flooring slot. Exterior wall items share one wall slot.',
+    ],
+
     'surface_canvas_layers' => [
+        'roof_item_id' => 'wall',
         'wallpaper_item_id' => 'wall',
         'exterior_wall_item_id' => 'wall',
         'flooring_item_id' => 'floor',
@@ -207,6 +228,7 @@ return [
         'floor' => 'Floor (furniture)',
         'decoration' => 'Decoration',
         'exterior' => 'Exterior',
+        'roof' => 'Roof',
         'wall' => 'Wallpaper',
         'ceiling' => 'Ceiling',
         'flooring' => 'Flooring',
@@ -227,5 +249,63 @@ return [
     // Legacy defaults used when per-type canvas config is absent.
     'canvas_width' => 700,
     'canvas_height' => 500,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Character Sprite Placement Defaults
+    |--------------------------------------------------------------------------
+    */
+    'default_sprite_width' => 80,
+    'default_sprite_height' => 120,
+
+    'editor_sprites' => [
+        'empty_message' => 'No character sprites available.',
+        'empty_hint' => 'Upload sprites on your character pages to place them in rooms and houses.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Featured Showcase
+    |--------------------------------------------------------------------------
+    */
+    'featured' => [
+        'title' => 'Showcase',
+        'description' => 'Moderator-curated featured rooms, houses, and characters from the community.',
+        'empty_message' => 'No featured content yet.',
+        'empty_hint' => 'Check back later for highlighted creations.',
+        'types' => [
+            'all' => 'All',
+            'room' => 'Rooms',
+            'house' => 'Houses',
+            'character' => 'Characters',
+        ],
+        'admin_title' => 'Featured Showcase',
+        'admin_description' => 'Curate featured rooms, houses, and characters for the public showcase.',
+        'created_message' => 'Featured entry created successfully.',
+        'updated_message' => 'Featured entry updated successfully.',
+        'deleted_message' => 'Featured entry removed successfully.',
+        'sorted_message' => 'Featured display order saved.',
+        'toggle_active_message' => 'Featured entry visibility updated.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Homestead Favorites
+    |--------------------------------------------------------------------------
+    */
+    'favorites' => [
+        'title' => 'Homestead Favorites',
+        'description' => 'Rooms, houses, and characters you have saved.',
+        'profile_title' => 'Homestead Favorites',
+        'empty_message' => 'No favorites yet.',
+        'empty_hint' => 'Favorite rooms, houses, and characters from the showcase or their pages.',
+        'toggle_message' => 'Favorite updated successfully.',
+        'types' => [
+            'all' => 'All',
+            'room' => 'Rooms',
+            'house' => 'Houses',
+            'character' => 'Characters',
+        ],
+    ],
 
 ];

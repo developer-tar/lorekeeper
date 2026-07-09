@@ -6,6 +6,11 @@
             </a>
         </li>
         <li class="nav-item">
+            <a class="nav-link py-1 px-2 small" data-toggle="tab" href="#editorInventorySprites" role="tab">
+                <i class="fas fa-user"></i> Sprites
+            </a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link py-1 px-2 small" data-toggle="tab" href="#editorInventorySurfaces" role="tab">
                 <i class="fas fa-palette"></i> Surfaces
             </a>
@@ -15,6 +20,9 @@
     <div class="tab-content homestead-editor-inventory-tab-content">
         @foreach(['furniture' => 'Furniture', 'surfaces' => 'Surfaces'] as $groupKey => $groupLabel)
             <div class="tab-pane fade {{ $groupKey === 'furniture' ? 'show active' : '' }}" id="editorInventory{{ ucfirst($groupKey) }}" role="tabpanel">
+                @if($groupKey === 'surfaces' && !empty($surfaceEditorNotes))
+                    <p class="small text-muted mb-2">{{ $surfaceEditorNotes }}</p>
+                @endif
                 @if(count($inventory[$groupKey]))
                     <div class="homestead-editor-inventory-grid">
                         @foreach($inventory[$groupKey] as $entry)
@@ -58,5 +66,9 @@
                 @endif
             </div>
         @endforeach
+
+        <div class="tab-pane fade" id="editorInventorySprites" role="tabpanel">
+            @include('homestead._editor_sprites', ['spriteInventory' => $spriteInventory ?? collect()])
+        </div>
     </div>
 </div>

@@ -94,6 +94,18 @@ class UserItem extends Model
     }
 
     /**
+     * Gets how many slot items from this stack can still be activated.
+     *
+     * @return int
+     */
+    public function getActivatableSlotQuantityAttribute()
+    {
+        $inactive = max(0, (int) $this->count - (int) ($this->attributes['activated_quantity'] ?? 0));
+
+        return min($this->availableQuantity, $inactive);
+    }
+
+    /**
      * Gets the stack's asset type for asset management.
      *
      * @return string

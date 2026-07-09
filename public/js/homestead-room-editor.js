@@ -5,10 +5,12 @@
         this.canvasWidth = options.canvasWidth;
         this.canvasHeight = options.canvasHeight;
         this.catalog = options.catalog || {};
+        this.spriteCatalog = options.spriteCatalog || {};
         this.layout = {};
         this.surfaceCanvasLayers = options.surfaceCanvasLayers || {};
         this.placements = [];
         this.placedCounts = {};
+        this.placedSpriteCounts = {};
         this.selectedId = null;
         this.nextId = 1;
         this.scale = 1;
@@ -18,6 +20,7 @@
         this.placementIndex = {};
         this.$placementNodes = {};
         this.$inventoryByItemId = {};
+        this.$inventoryBySpriteId = {};
         this.dragRafId = null;
         this.pendingDragPlacement = null;
         this.resizeRafId = null;
@@ -69,12 +72,28 @@
     HomesteadRoomEditor.prototype.cacheInventoryElements = function() {
         var self = this;
         this.$inventoryByItemId = {};
+        this.$inventoryBySpriteId = {};
         this.$inventoryRoot.find('.homestead-editor-inventory-item').each(function() {
-            var itemId = parseInt($(this).data('item-id'), 10);
-            if (!self.$inventoryByItemId[itemId]) {
-                self.$inventoryByItemId[itemId] = $(this);
+            var $entry = $(this);
+            var itemId = parseInt($entry.data('item-id'), 10);
+            var spriteId = parseInt($entry.data('sprite-id'), 10);
+
+            if (itemId && !self.$inventoryByItemId[itemId]) {
+                self.$inventoryByItemId[itemId] = $entry;
+            }
+
+            if (spriteId && !self.$inventoryBySpriteId[spriteId]) {
+                self.$inventoryBySpriteId[spriteId] = $entry;
             }
         });
+    };
+
+    HomesteadRoomEditor.prototype.getPlacementEntry = function(placement) {
+        if (placement.spriteId) {
+            return this.spriteCatalog[placement.spriteId] || null;
+        }
+
+        return this.catalog[placement.itemId] || null;
     };
 
     HomesteadRoomEditor.prototype.updatePlacementPosition = function(placement) {
@@ -215,14 +234,21 @@
 
     HomesteadRoomEditor.prototype.getPlacementsPayload = function() {
         return this.placements.map(function(placement) {
-            return {
-                item_id: placement.itemId,
+            var payload = {
                 x: placement.x,
                 y: placement.y,
                 width: placement.width,
                 height: placement.height,
                 z_index: placement.zIndex,
             };
+
+            if (placement.spriteId) {
+                payload.character_sprite_id = placement.spriteId;
+            } else {
+                payload.item_id = placement.itemId;
+            }
+
+            return payload;
         });
     };
 
@@ -234,12 +260,16 @@
         this.nextId = 1;
 
         initialPlacements.forEach(function(placement) {
-            var itemId = parseInt(placement.item_id, 10);
-            var item = self.catalog[itemId];
-            if (!item) return;
+            var spriteId = placement.character_sprite_id
+                ? parseInt(placement.character_sprite_id, 10)
+                : null;
+            var itemId = placement.item_id ? parseInt(placement.item_id, 10) : null;
+            var entry = spriteId ? self.spriteCatalog[spriteId] : self.catalog[itemId];
 
-            var width = parseFloat(placement.width) || item.width;
-            var height = parseFloat(placement.height) || item.height;
+            if (!entry) return;
+
+            var width = parseFloat(placement.width) || entry.width;
+            var height = parseFloat(placement.height) || entry.height;
             var pos = self.clampPosition(
                 parseFloat(placement.x),
                 parseFloat(placement.y),
@@ -247,17 +277,24 @@
                 height
             );
 
-            self.placements.push({
+            var record = {
                 id: self.nextId++,
-                itemId: itemId,
                 x: pos.x,
                 y: pos.y,
                 width: width,
                 height: height,
                 zIndex: parseInt(placement.z_index, 10) || 10,
-            });
+            };
 
-            self.placedCounts[itemId] = (self.placedCounts[itemId] || 0) + 1;
+            if (spriteId) {
+                record.spriteId = spriteId;
+                self.placedSpriteCounts[spriteId] = (self.placedSpriteCounts[spriteId] || 0) + 1;
+            } else {
+                record.itemId = itemId;
+                self.placedCounts[itemId] = (self.placedCounts[itemId] || 0) + 1;
+            }
+
+            self.placements.push(record);
         });
 
         this.normalizeZIndices();
@@ -272,6 +309,12 @@
         var item = this.catalog[itemId];
         if (!item) return 0;
         return item.quantity - (this.placedCounts[itemId] || 0);
+    };
+
+    HomesteadRoomEditor.prototype.getAvailableSprite = function(spriteId) {
+        var sprite = this.spriteCatalog[spriteId];
+        if (!sprite) return 0;
+        return sprite.quantity - (this.placedSpriteCounts[spriteId] || 0);
     };
 
     HomesteadRoomEditor.prototype.clampPosition = function(x, y, width, height) {
@@ -360,12 +403,64 @@
         return true;
     };
 
+    HomesteadRoomEditor.prototype.placeSpriteFromClientPoint = function(spriteId, clientX, clientY) {
+        if (this.getAvailableSprite(spriteId) <= 0) return false;
+
+        var sprite = this.spriteCatalog[spriteId];
+        if (!sprite) return false;
+
+        var coords = this.toCanvasCoords(clientX, clientY);
+        this.placeSprite(
+            spriteId,
+            coords.x - (sprite.width / 2),
+            coords.y - (sprite.height / 2)
+        );
+
+        return true;
+    };
+
     HomesteadRoomEditor.prototype.toCanvasCoords = function(clientX, clientY) {
         var rect = this.$stage[0].getBoundingClientRect();
         return {
             x: (clientX - rect.left) / this.scale,
             y: (clientY - rect.top) / this.scale,
         };
+    };
+
+    HomesteadRoomEditor.prototype.placeSprite = function(spriteId, x, y) {
+        if (this.getAvailableSprite(spriteId) <= 0) return;
+
+        var sprite = this.spriteCatalog[spriteId];
+        var pos = this.clampPosition(
+            typeof x === 'number' ? x : (this.canvasWidth / 2) - (sprite.width / 2),
+            typeof y === 'number' ? y : (this.canvasHeight / 2) - (sprite.height / 2),
+            sprite.width,
+            sprite.height
+        );
+
+        var maxZ = 10;
+        this.placements.forEach(function(placement) {
+            if (placement.zIndex > maxZ) maxZ = placement.zIndex;
+        });
+
+        var placement = {
+            id: this.nextId++,
+            spriteId: spriteId,
+            x: pos.x,
+            y: pos.y,
+            width: sprite.width,
+            height: sprite.height,
+            zIndex: maxZ + 1,
+        };
+
+        this.placements.push(placement);
+        this.placementIndex[placement.id] = placement;
+        this.placedSpriteCounts[spriteId] = (this.placedSpriteCounts[spriteId] || 0) + 1;
+        this.renderPlacement(placement);
+        this.updateInventoryCounts([], [spriteId]);
+        this.updateEmptyPlaceholder();
+        this.updateSurfaceSelection();
+        this.markDirty();
     };
 
     HomesteadRoomEditor.prototype.placeItem = function(itemId, x, y) {
@@ -409,11 +504,19 @@
         if (!placement) return;
 
         var itemId = placement.itemId;
+        var spriteId = placement.spriteId;
         this.placements = this.placements.filter(function(entry) {
             return entry.id !== placementId;
         });
         delete this.placementIndex[placementId];
-        this.placedCounts[itemId] = Math.max(0, (this.placedCounts[itemId] || 1) - 1);
+
+        if (itemId) {
+            this.placedCounts[itemId] = Math.max(0, (this.placedCounts[itemId] || 1) - 1);
+        }
+
+        if (spriteId) {
+            this.placedSpriteCounts[spriteId] = Math.max(0, (this.placedSpriteCounts[spriteId] || 1) - 1);
+        }
 
         if (this.$placementNodes[placementId]) {
             this.$placementNodes[placementId].remove();
@@ -425,7 +528,7 @@
             this.updateSelection();
         }
 
-        this.updateInventoryCounts([itemId]);
+        this.updateInventoryCounts(itemId ? [itemId] : [], spriteId ? [spriteId] : []);
         this.updateEmptyPlaceholder();
         this.updateSurfaceSelection();
         this.markDirty();
@@ -553,14 +656,19 @@
     };
 
     HomesteadRoomEditor.prototype.createPlacementNode = function(placement) {
-        var item = this.catalog[placement.itemId];
-        if (!item) return null;
+        var entry = this.getPlacementEntry(placement);
+        if (!entry) return null;
 
         var $node = $('<div class="homestead-editor-placed-item"></div>');
         $node.attr({
             'data-placement-id': placement.id,
-            'data-item-id': placement.itemId,
         });
+
+        if (placement.spriteId) {
+            $node.attr('data-sprite-id', placement.spriteId);
+        } else {
+            $node.attr('data-item-id', placement.itemId);
+        }
         $node.css({
             left: placement.x + 'px',
             top: placement.y + 'px',
@@ -573,12 +681,13 @@
             $node.addClass('is-selected');
         }
 
-        if (item.hasImage && item.imageUrl) {
+        if (entry.hasImage && entry.imageUrl) {
             $('<img>', {
-                src: item.imageUrl,
-                alt: item.name,
+                src: entry.imageUrl,
+                alt: entry.name,
                 draggable: false,
                 loading: 'lazy',
+                decoding: 'async',
             }).appendTo($node);
         } else {
             $('<div class="homestead-editor-placed-item-fallback"><i class="fas fa-cube"></i></div>').appendTo($node);
@@ -604,32 +713,52 @@
 
     HomesteadRoomEditor.prototype.render = function() {
         var self = this;
+        var sorted = this.placements.slice().sort(function(a, b) {
+            return a.zIndex - b.zIndex;
+        });
+        var fragment = document.createDocumentFragment();
+
         this.$items.empty();
         this.$placementNodes = {};
 
-        this.placements.slice().sort(function(a, b) {
-            return a.zIndex - b.zIndex;
-        }).forEach(function(placement) {
-            self.renderPlacement(placement);
+        sorted.forEach(function(placement) {
+            var $node = self.createPlacementNode(placement);
+            if (!$node) {
+                return;
+            }
+
+            self.$placementNodes[placement.id] = $node;
+            fragment.appendChild($node[0]);
         });
+
+        if (this.$items.length) {
+            this.$items[0].appendChild(fragment);
+        }
 
         this.updateSelection();
         this.updateEmptyPlaceholder();
         this.updateLayerControlsState();
     };
 
-    HomesteadRoomEditor.prototype.updateInventoryCounts = function(itemIds) {
+    HomesteadRoomEditor.prototype.updateInventoryCounts = function(itemIds, spriteIds) {
         var self = this;
         var ids = itemIds;
+        var spriteIdList = spriteIds;
 
         if (!ids || !ids.length) {
-            ids = [];
-            this.$inventoryRoot.find('.homestead-editor-inventory-item.is-placeable').each(function() {
-                ids.push(parseInt($(this).data('item-id'), 10));
-            });
+            ids = Object.keys(this.$inventoryByItemId).map(function(itemId) {
+                return parseInt(itemId, 10);
+            }).filter(Boolean);
+        }
+
+        if (!spriteIdList || !spriteIdList.length) {
+            spriteIdList = Object.keys(this.$inventoryBySpriteId).map(function(spriteId) {
+                return parseInt(spriteId, 10);
+            }).filter(Boolean);
         }
 
         ids.forEach(function(itemId) {
+            if (!itemId) return;
             var $item = self.$inventoryByItemId[itemId];
             if (!$item || !$item.length || !$item.hasClass('is-placeable')) return;
 
@@ -640,9 +769,27 @@
             $item.toggleClass('is-unavailable', available <= 0);
 
             if (placed > 0) {
-                $item.find('.homestead-editor-inventory-item-qty').text(available + ' / ' + total);
+                $item.find('.homestead-editor-inventory-item-qty').last().text(available + ' / ' + total);
             } else {
-                $item.find('.homestead-editor-inventory-item-qty').text('x' + total);
+                $item.find('.homestead-editor-inventory-item-qty').last().text('x' + total);
+            }
+        });
+
+        spriteIdList.forEach(function(spriteId) {
+            if (!spriteId) return;
+            var $sprite = self.$inventoryBySpriteId[spriteId];
+            if (!$sprite || !$sprite.length || !$sprite.hasClass('is-sprite-placeable')) return;
+
+            var available = self.getAvailableSprite(spriteId);
+            var total = self.spriteCatalog[spriteId] ? self.spriteCatalog[spriteId].quantity : 0;
+            var placed = self.placedSpriteCounts[spriteId] || 0;
+
+            $sprite.toggleClass('is-unavailable', available <= 0);
+
+            if (placed > 0) {
+                $sprite.find('.homestead-editor-inventory-item-qty').last().text(available + ' / ' + total);
+            } else {
+                $sprite.find('.homestead-editor-inventory-item-qty').last().text('x' + total);
             }
         });
     };
@@ -652,6 +799,28 @@
 
         $(window).on('resize.homesteadEditor', function() {
             self.updateScale();
+        });
+
+        this.$inventoryRoot.on('click', '.homestead-editor-inventory-item.is-sprite-placeable', function(e) {
+            e.preventDefault();
+            var $sprite = $(this);
+            if ($sprite.hasClass('is-unavailable')) return;
+            if (self.inventoryDrag && self.inventoryDrag.moved) return;
+            self.placeSprite(parseInt($sprite.data('sprite-id'), 10));
+        });
+
+        this.$inventoryRoot.on('mousedown touchstart', '.homestead-editor-inventory-item.is-sprite-placeable', function(e) {
+            if (e.type === 'mousedown' && e.which !== 1) return;
+            var $sprite = $(this);
+            if ($sprite.hasClass('is-unavailable')) return;
+
+            var point = self.getEventPoint(e);
+            self.inventoryDrag = {
+                spriteId: parseInt($sprite.data('sprite-id'), 10),
+                startX: point.x,
+                startY: point.y,
+                moved: false,
+            };
         });
 
         this.$inventoryRoot.on('click', '.homestead-editor-inventory-item.is-placeable', function(e) {
@@ -692,7 +861,11 @@
             if (self.inventoryDrag.moved) {
                 var point = self.getEventPoint(e);
                 if (self.isPointInsideCanvas(point.x, point.y)) {
-                    self.placeItemFromClientPoint(self.inventoryDrag.itemId, point.x, point.y);
+                    if (self.inventoryDrag.spriteId) {
+                        self.placeSpriteFromClientPoint(self.inventoryDrag.spriteId, point.x, point.y);
+                    } else if (self.inventoryDrag.itemId) {
+                        self.placeItemFromClientPoint(self.inventoryDrag.itemId, point.x, point.y);
+                    }
                 }
             }
 

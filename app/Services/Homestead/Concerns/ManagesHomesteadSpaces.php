@@ -7,9 +7,12 @@ use App\Services\Homestead\HomesteadConfig;
 use App\Models\Homestead\RoomSave;
 use App\Models\Homestead\RoomLayout;
 use App\Models\Homestead\RoomPlacement;
+use App\Models\Homestead\HomesteadFavorite;
+use App\Services\Homestead\Concerns\CleansHomesteadReferences;
 
 trait ManagesHomesteadSpaces
 {
+    use CleansHomesteadReferences;
     /**
      * Create a room or house for a user.
      *
@@ -110,6 +113,12 @@ trait ManagesHomesteadSpaces
 
             RoomPlacement::where('room_save_id', $room->id)->delete();
             RoomLayout::where('room_save_id', $room->id)->delete();
+
+            $refType = $room->room_type === RoomSave::TYPE_OUTDOOR
+                ? HomesteadFavorite::TYPE_HOUSE
+                : HomesteadFavorite::TYPE_ROOM;
+            $this->cleanupHomesteadReferences($refType, $room->id);
+
             $room->delete();
 
             return $this->commitReturn(true);

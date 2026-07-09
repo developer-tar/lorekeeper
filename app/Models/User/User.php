@@ -197,6 +197,14 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany('App\Models\Character\CharacterBookmark')->where('user_id', $this->id);
     }
 
+    /**
+     * Get all of the user's homestead favorites.
+     */
+    public function homesteadFavorites()
+    {
+        return $this->hasMany('App\Models\Homestead\HomesteadFavorite');
+    }
+
     /**********************************************************************************************
 
         SCOPES

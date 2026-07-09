@@ -5,6 +5,11 @@
 @section('editor-content')
 <div class="homestead-editor" id="homesteadEditorApp">
     <div class="homestead-editor-toolbar d-flex align-items-center justify-content-between flex-wrap">
+        @if(!empty($skippedPlacementCount))
+            <div class="alert alert-warning w-100 mb-2 py-2 small">
+                {{ $skippedPlacementCount }} saved placement{{ $skippedPlacementCount === 1 ? '' : 's' }} could not be loaded because the item or sprite is no longer available. Saving will remove them from this space.
+            </div>
+        @endif
         <div class="homestead-editor-toolbar-title mb-2 mb-md-0">
             <h1 class="h4 mb-0">{{ $room->name }}</h1>
             <small class="text-muted d-block">{{ $editor['label'] }}</small>
@@ -53,7 +58,7 @@
                     </div>
                     <div class="homestead-editor-canvas-placeholder d-none" id="homesteadEditorCanvasPlaceholder">
                         <i class="fas fa-couch fa-2x text-muted mb-2"></i>
-                        <p class="small text-muted mb-0">Select furniture from the inventory, then click or drag it onto the canvas.</p>
+                        <p class="small text-muted mb-0">Select furniture or sprites from the inventory, then click or drag them onto the canvas.</p>
                     </div>
                 </div>
             </div>
@@ -71,7 +76,9 @@
                     @include('homestead._editor_inventory', [
                         'placeableGroup' => $editor['placeable_group'] ?? 'furniture',
                         'surfaceLayoutFields' => $surfaceLayoutFields,
+                        'surfaceEditorNotes' => $surfaceEditorNotes ?? null,
                         'emptyInventoryHint' => $editor['empty_inventory_hint'] ?? null,
+                        'spriteInventory' => $spriteInventory,
                     ])
                 </div>
             </div>
@@ -94,6 +101,7 @@
             canvasWidth: {{ $canvasWidth }},
             canvasHeight: {{ $canvasHeight }},
             catalog: @json($editorCatalog),
+            spriteCatalog: @json($spriteCatalog),
             initialPlacements: @json($initialPlacements),
             initialLayout: @json($initialLayout),
             surfaceCanvasLayers: @json(config('lorekeeper.homestead.surface_canvas_layers', [])),

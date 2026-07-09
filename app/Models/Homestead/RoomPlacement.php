@@ -14,7 +14,7 @@ class RoomPlacement extends Model
      * @var array
      */
     protected $fillable = [
-        'room_save_id', 'item_id', 'user_item_id',
+        'room_save_id', 'item_id', 'character_sprite_id', 'user_item_id',
         'x', 'y', 'width', 'height', 'z_index',
     ];
 
@@ -60,5 +60,13 @@ class RoomPlacement extends Model
     public function userItem()
     {
         return $this->belongsTo(UserItem::class);
+    }
+
+    /**
+     * Get the placed character sprite.
+     */
+    public function characterSprite()
+    {
+        return $this->belongsTo('App\Models\Character\CharacterSprite', 'character_sprite_id');
     }
 }

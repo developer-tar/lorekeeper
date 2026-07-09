@@ -350,13 +350,21 @@ class ItemController extends Controller
     public function postEditItemTag(Request $request, ItemService $service, $id, $tag)
     {
         $item = Item::find($id);
+        if(!$item) {
+            flash('Invalid item selected.')->error();
+            return redirect()->to('admin/data/items');
+        }
+
         if($service->editItemTag($item, $tag, $request->all())) {
             flash('Tag edited successfully.')->success();
         }
         else {
             foreach($service->errors()->getMessages()['error'] as $error) flash($error)->error();
+            $itemTag = $item->tags()->where('tag', $tag)->first();
+
+            return redirect()->to($itemTag ? $itemTag->adminUrl : 'admin/data/items/edit/'.$item->id);
         }
-        return redirect()->back();
+        return redirect()->to('admin/data/items/edit/'.$item->id);
     }
 
     /**

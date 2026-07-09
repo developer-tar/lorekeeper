@@ -2,12 +2,14 @@
 
 namespace App\Services\Homestead\Concerns;
 
+use App\Services\Concerns\ManagesActivatedSlotItems;
 use App\Services\Homestead\HomesteadConfig;
 use App\Models\Homestead\RoomSave;
-use App\Models\User\UserItem;
 
 trait ManagesHomesteadSlots
 {
+    use ManagesActivatedSlotItems;
+
     /**
      * Get slot usage summary for a user and room type.
      *
@@ -65,23 +67,6 @@ trait ManagesHomesteadSlots
         return RoomSave::where('user_id', $user->id)
             ->where('room_type', $roomType)
             ->count();
-    }
-
-    /**
-     * Get the number of activated inventory slot items for a tag.
-     *
-     * @param  \App\Models\User\User  $user
-     * @param  string                 $tag
-     * @return int
-     */
-    public function getActivatedSlotCount($user, $tag)
-    {
-        return UserItem::where('user_id', $user->id)
-            ->where('activated_quantity', '>', 0)
-            ->whereHas('item.tags', function ($query) use ($tag) {
-                $query->where('tag', $tag)->where('is_active', 1);
-            })
-            ->sum('activated_quantity');
     }
 
     /**

@@ -114,6 +114,17 @@ class HomesteadConfig
     }
 
     /**
+     * Editor notes for shared surface layout slots.
+     *
+     * @param  string  $roomType
+     * @return string|null
+     */
+    public static function surfaceEditorNotes($roomType)
+    {
+        return Config::get('lorekeeper.homestead.surface_editor_notes.' . $roomType);
+    }
+
+    /**
      * Inventory tag used to unlock extra slots.
      *
      * @param  string  $roomType
@@ -139,6 +150,133 @@ class HomesteadConfig
         return $roomType === RoomSave::TYPE_INDOOR
             ? (int) Config::get('lorekeeper.homestead.base_indoor_slots', 1)
             : (int) Config::get('lorekeeper.homestead.base_outdoor_slots', 1);
+    }
+
+    /**
+     * Base sprite slot count before activated sprite slot items.
+     *
+     * @return int
+     */
+    public static function baseSpriteSlots()
+    {
+        return (int) Config::get('lorekeeper.homestead.base_sprite_slots', 1);
+    }
+
+    /**
+     * Inventory tag used to unlock extra character sprite slots.
+     *
+     * @return string
+     */
+    public static function spriteSlotTag()
+    {
+        return Config::get('lorekeeper.homestead.sprite_slot_tag', 'sprite_slot');
+    }
+
+    /**
+     * UI message shown when a character reaches its sprite slot limit.
+     *
+     * @return string
+     */
+    public static function spriteSlotLimitMessage()
+    {
+        return Config::get(
+            'lorekeeper.homestead.sprite_slots.slot_limit_message',
+            'This character has reached its sprite slot limit. Activate a sprite slot item from your inventory to unlock more sprites.'
+        );
+    }
+
+    /**
+     * Default placement size for character sprites in the editor.
+     *
+     * @return array{width: int, height: int}
+     */
+    public static function defaultSpriteSize()
+    {
+        return [
+            'width' => (int) Config::get('lorekeeper.homestead.default_sprite_width', 80),
+            'height' => (int) Config::get('lorekeeper.homestead.default_sprite_height', 120),
+        ];
+    }
+
+    /**
+     * UI copy for the editor sprites tab.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    public static function editorSpritesLabel($key)
+    {
+        return Config::get('lorekeeper.homestead.editor_sprites.' . $key, '');
+    }
+
+    /**
+     * Featured showcase UI copy.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    public static function featuredLabel($key)
+    {
+        return Config::get('lorekeeper.homestead.featured.' . $key, '');
+    }
+
+    /**
+     * Featured type labels for filters and badges.
+     *
+     * @param  string|null  $type
+     * @return string
+     */
+    public static function featuredTypeLabel($type)
+    {
+        $labels = Config::get('lorekeeper.homestead.featured.types', []);
+
+        if (!$type) {
+            return $labels['all'] ?? 'All';
+        }
+
+        return $labels[$type] ?? ucfirst($type);
+    }
+
+    /**
+     * Featured type filter options for public showcase tabs.
+     *
+     * @return array
+     */
+    public static function featuredTypeFilters()
+    {
+        return Config::get('lorekeeper.homestead.featured.types', []);
+    }
+
+    /**
+     * Homestead favorites UI copy.
+     *
+     * @param  string  $key
+     * @return string
+     */
+    public static function favoriteLabel($key)
+    {
+        return Config::get('lorekeeper.homestead.favorites.' . $key, '');
+    }
+
+    /**
+     * Favorite type filter options.
+     *
+     * @return array
+     */
+    public static function favoriteTypeFilters()
+    {
+        return Config::get('lorekeeper.homestead.favorites.types', []);
+    }
+
+    /**
+     * Favorite type label.
+     *
+     * @param  string  $type
+     * @return string
+     */
+    public static function favoriteTypeLabel($type)
+    {
+        return static::featuredTypeLabel($type);
     }
 
     /**

@@ -30,3 +30,8 @@ Route::group(['prefix' => 'homestead', 'namespace' => 'Homestead'], function() {
     Route::get('houses/delete/{id}', 'SpaceController@getDelete')->where('id', '[0-9]+');
     Route::post('houses/delete/{id}', 'SpaceController@postDelete')->where('id', '[0-9]+');
 });
+
+Route::group(['prefix' => 'favorites', 'namespace' => 'Homestead'], function() {
+    Route::get('/', 'FavoriteController@getIndex');
+    Route::post('toggle', 'FavoriteController@postToggle');
+});

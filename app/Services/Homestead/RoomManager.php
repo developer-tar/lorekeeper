@@ -10,6 +10,7 @@ class RoomManager extends Service
     use ManagesHomesteadSlots;
     use ManagesHomesteadSpaces;
     use ManagesHomesteadEditor;
+    use \App\Services\Homestead\Concerns\ManagesHomesteadPreview;
 
     /*
     |--------------------------------------------------------------------------

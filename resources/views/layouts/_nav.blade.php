@@ -24,6 +24,9 @@
                         <a class="nav-link" href="{{ url('sales') }}">Sales</a>
                     @endif
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url('showcase') }}">Showcase</a>
+                </li>
                 @if(Auth::check())
                     <li class="nav-item dropdown">
                         <a id="inventoryDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
@@ -56,6 +59,12 @@
                             </a>
                             <a class="dropdown-item" href="{{ url('homestead/houses') }}">
                                 Houses
+                            </a>
+                            <a class="dropdown-item" href="{{ url('showcase') }}">
+                                Showcase
+                            </a>
+                            <a class="dropdown-item" href="{{ url('favorites') }}">
+                                Favorites
                             </a>
                         </div>
                     </li>

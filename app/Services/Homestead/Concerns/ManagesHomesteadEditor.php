@@ -9,9 +9,19 @@ use App\Models\Homestead\RoomLayout;
 use App\Models\Homestead\RoomPlacement;
 use App\Models\User\UserItem;
 use App\Models\Item\Item;
+use App\Models\Character\CharacterSprite;
 
 trait ManagesHomesteadEditor
 {
+    use ManagesHomesteadEditorSprites;
+
+    /**
+     * Placements dropped during the most recent save attempt.
+     *
+     * @var int
+     */
+    protected $lastDroppedPlacementCount = 0;
+
     /**
      * Cached placeable item IDs per room type for the current request.
      *
@@ -64,7 +74,17 @@ trait ManagesHomesteadEditor
         $room->load([
             'layout',
             'placements' => function ($query) {
-                $query->orderBy('z_index');
+                $query->select([
+                    'id',
+                    'room_save_id',
+                    'item_id',
+                    'character_sprite_id',
+                    'x',
+                    'y',
+                    'width',
+                    'height',
+                    'z_index',
+                ])->orderBy('z_index');
             },
         ]);
 
@@ -72,7 +92,10 @@ trait ManagesHomesteadEditor
         $canvas = $this->getEditorCanvasSize($room->room_type);
         $placedCounts = $this->getPlacedCountsForRoom($room);
         $inventory = $this->getEditorInventory($user, $room->room_type, $room, $placedCounts);
+        $spriteInventory = $this->getEditorSpriteInventory($user, $room);
         $segment = HomesteadConfig::listSegment($room->room_type);
+        $loadablePlacements = $this->filterLoadablePlacements($room->placements, $user, $room);
+        $skippedPlacementCount = $room->placements->count() - $loadablePlacements->count();
 
         return [
             'room' => $room,
@@ -80,10 +103,14 @@ trait ManagesHomesteadEditor
             'exitUrl' => url('homestead/' . $segment),
             'saveUrl' => url('homestead/' . $segment . '/' . $room->id . '/editor'),
             'inventory' => $inventory,
-            'editorCatalog' => $this->buildEditorCatalog($inventory, $room->placements),
-            'initialPlacements' => $this->formatPlacementsForEditor($room->placements),
+            'spriteInventory' => $spriteInventory,
+            'editorCatalog' => $this->buildEditorCatalog($inventory, $loadablePlacements, $room->room_type),
+            'spriteCatalog' => $this->buildSpriteCatalogForRoom($spriteInventory, $loadablePlacements),
+            'initialPlacements' => $this->formatPlacementsForEditor($loadablePlacements),
+            'skippedPlacementCount' => $skippedPlacementCount,
             'initialLayout' => $this->getInitialLayoutForEditor($room),
             'surfaceLayoutFields' => HomesteadConfig::surfaceLayoutFields($room->room_type),
+            'surfaceEditorNotes' => HomesteadConfig::surfaceEditorNotes($room->room_type),
             'canvasBackground' => HomesteadConfig::canvasBackgroundAttributes($room->room_type),
             'canvasWidth' => $canvas['width'],
             'canvasHeight' => $canvas['height'],
@@ -115,7 +142,11 @@ trait ManagesHomesteadEditor
         $quantities = UserItem::query()
             ->where('user_id', $user->id)
             ->where('count', '>', 0)
-            ->whereIn('item_id', $placeableItemIds)
+            ->whereExists(function ($query) use ($roomType) {
+                Item::placeableInHomestead($roomType)
+                    ->selectRaw('1')
+                    ->whereColumn('items.id', 'user_items.item_id');
+            })
             ->groupBy('item_id')
             ->selectRaw('item_id, SUM(count) as quantity')
             ->pluck('quantity', 'item_id');
@@ -126,6 +157,7 @@ trait ManagesHomesteadEditor
 
         $items = Item::query()
             ->whereIn('id', $quantities->keys())
+            ->select(['id', 'name', 'has_image', 'default_width', 'default_height', 'placement_type'])
             ->sortAlphabetical()
             ->get()
             ->keyBy('id');
@@ -189,7 +221,7 @@ trait ManagesHomesteadEditor
             ? $roomOrPlacements->placements
             : $roomOrPlacements;
 
-        return $this->buildEditorCatalog($inventory, $placements);
+        return $this->buildEditorCatalog($inventory, $placements, $roomOrPlacements instanceof RoomSave ? $roomOrPlacements->room_type : null);
     }
 
     /**
@@ -232,6 +264,7 @@ trait ManagesHomesteadEditor
         DB::beginTransaction();
 
         try {
+            $this->lastDroppedPlacementCount = 0;
             $this->assertUserOwnsSpace($user, $room);
 
             $inventory = $this->getEditorInventory($user, $room->room_type, $room);
@@ -324,15 +357,27 @@ trait ManagesHomesteadEditor
     protected function formatPlacementsForEditor($placements)
     {
         return $placements->map(function ($placement) {
-            return [
-                'item_id' => $placement->item_id,
+            $payload = [
                 'x' => (float) $placement->x,
                 'y' => (float) $placement->y,
                 'width' => (float) $placement->width,
                 'height' => (float) $placement->height,
                 'z_index' => (int) $placement->z_index,
             ];
+
+            if ($placement->character_sprite_id) {
+                $payload['character_sprite_id'] = (int) $placement->character_sprite_id;
+            } else {
+                $payload['item_id'] = (int) $placement->item_id;
+            }
+
+            return $payload;
         })->values()->all();
+    }
+
+    public function getLastDroppedPlacementCount()
+    {
+        return (int) $this->lastDroppedPlacementCount;
     }
 
     /**
@@ -340,9 +385,10 @@ trait ManagesHomesteadEditor
      *
      * @param  array                           $inventory
      * @param  \Illuminate\Support\Collection  $placements
+     * @param  string|null                     $roomType
      * @return array
      */
-    protected function buildEditorCatalog($inventory, $placements)
+    protected function buildEditorCatalog($inventory, $placements, $roomType = null)
     {
         $catalog = [];
 
@@ -352,15 +398,25 @@ trait ManagesHomesteadEditor
             }
         }
 
+        if (!$roomType) {
+            return $catalog;
+        }
+
         $missingItemIds = $placements->pluck('item_id')->unique()->filter(function ($itemId) use ($catalog) {
-            return !isset($catalog[$itemId]);
+            return $itemId && !isset($catalog[$itemId]);
         });
 
         if ($missingItemIds->isEmpty()) {
             return $catalog;
         }
 
-        foreach (Item::whereIn('id', $missingItemIds)->get() as $item) {
+        $placeableIds = array_flip($this->getPlaceableItemIds($roomType)->all());
+
+        foreach (Item::whereIn('id', $missingItemIds)->select(['id', 'name', 'has_image', 'default_width', 'default_height', 'placement_type'])->get() as $item) {
+            if (!isset($placeableIds[$item->id])) {
+                continue;
+            }
+
             $catalog[$item->id] = $this->buildCatalogEntry($item, 0);
         }
 
@@ -401,11 +457,16 @@ trait ManagesHomesteadEditor
             $canvasHeight = $canvas['height'];
             $itemCounts = [];
             $normalizedPlacements = [];
+            $normalizedSpritePlacements = [];
             $requestedItemIds = [];
 
             foreach ($placements as $placement) {
                 if (!is_array($placement)) {
                     throw new \Exception('Invalid placement data.');
+                }
+
+                if (!empty($placement['character_sprite_id'])) {
+                    continue;
                 }
 
                 if (!isset($placement['item_id'], $placement['x'], $placement['y'], $placement['z_index'])) {
@@ -415,14 +476,30 @@ trait ManagesHomesteadEditor
                 $requestedItemIds[] = (int) $placement['item_id'];
             }
 
+            $normalizedSpritePlacements = $this->normalizeSpritePlacements(
+                $placements,
+                $user,
+                $room,
+                $settings,
+                $canvas
+            );
+
             $itemsById = $requestedItemIds
-                ? Item::whereIn('id', array_unique($requestedItemIds))->get()->keyBy('id')
+                ? Item::whereIn('id', array_unique($requestedItemIds))
+                    ->select(['id', 'is_homestead_item', 'placement_type', 'default_width', 'default_height'])
+                    ->get()
+                    ->keyBy('id')
                 : collect();
 
             foreach ($placements as $placement) {
+                if (!empty($placement['character_sprite_id'])) {
+                    continue;
+                }
+
                 $itemId = (int) $placement['item_id'];
                 if (!isset($placeableItemIds[$itemId])) {
-                    throw new \Exception($settings['invalid_item_message']);
+                    $this->lastDroppedPlacementCount++;
+                    continue;
                 }
 
                 $item = $itemsById->get($itemId);
@@ -471,22 +548,40 @@ trait ManagesHomesteadEditor
 
             RoomPlacement::where('room_save_id', $room->id)->delete();
 
-            if ($normalizedPlacements) {
-                $timestamp = now();
-                $rows = array_map(function ($placement) use ($room, $timestamp) {
-                    return [
-                        'room_save_id' => $room->id,
-                        'item_id' => $placement['item_id'],
-                        'x' => $placement['x'],
-                        'y' => $placement['y'],
-                        'width' => $placement['width'],
-                        'height' => $placement['height'],
-                        'z_index' => $placement['z_index'],
-                        'created_at' => $timestamp,
-                        'updated_at' => $timestamp,
-                    ];
-                }, $normalizedPlacements);
+            $rows = [];
+            $timestamp = now();
 
+            foreach ($normalizedPlacements as $placement) {
+                $rows[] = [
+                    'room_save_id' => $room->id,
+                    'item_id' => $placement['item_id'],
+                    'character_sprite_id' => null,
+                    'x' => $placement['x'],
+                    'y' => $placement['y'],
+                    'width' => $placement['width'],
+                    'height' => $placement['height'],
+                    'z_index' => $placement['z_index'],
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }
+
+            foreach ($normalizedSpritePlacements as $placement) {
+                $rows[] = [
+                    'room_save_id' => $room->id,
+                    'item_id' => null,
+                    'character_sprite_id' => $placement['character_sprite_id'],
+                    'x' => $placement['x'],
+                    'y' => $placement['y'],
+                    'width' => $placement['width'],
+                    'height' => $placement['height'],
+                    'z_index' => $placement['z_index'],
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
+            }
+
+            if ($rows) {
                 foreach (array_chunk($rows, 250) as $chunk) {
                     RoomPlacement::insert($chunk);
                 }
@@ -567,5 +662,61 @@ trait ManagesHomesteadEditor
         }
 
         $layout->save();
+    }
+
+    /**
+     * Keep only placements that can be rendered and saved in the editor.
+     *
+     * @param  \Illuminate\Support\Collection  $placements
+     * @param  \App\Models\User\User           $user
+     * @param  \App\Models\Homestead\RoomSave  $room
+     * @return \Illuminate\Support\Collection
+     */
+    protected function filterLoadablePlacements($placements, $user, $room)
+    {
+        $roomType = $room->room_type;
+        $placeableItemIds = array_flip($this->getPlaceableItemIds($roomType)->all());
+        $settings = $this->getEditorSettings($roomType);
+        $placeableGroup = $settings['placeable_group'] ?? 'furniture';
+        $furnitureTypes = array_flip(HomesteadConfig::inventoryGroups($roomType)[$placeableGroup] ?? []);
+
+        $itemIds = $placements->pluck('item_id')->filter()->unique()->all();
+        $items = $itemIds
+            ? Item::whereIn('id', $itemIds)->select(['id', 'placement_type'])->get()->keyBy('id')
+            : collect();
+
+        $spriteIds = $placements->pluck('character_sprite_id')->filter()->unique()->all();
+        $ownedSpriteIds = [];
+
+        if ($spriteIds) {
+            $ownedSpriteIds = CharacterSprite::query()
+                ->select('character_sprites.id')
+                ->join('characters', 'characters.id', '=', 'character_sprites.character_id')
+                ->where('character_sprites.has_image', 1)
+                ->where('characters.user_id', $user->id)
+                ->where('characters.is_myo_slot', 0)
+                ->whereIn('character_sprites.id', $spriteIds)
+                ->pluck('character_sprites.id')
+                ->flip()
+                ->all();
+        }
+
+        return $placements->filter(function ($placement) use ($placeableItemIds, $furnitureTypes, $items, $ownedSpriteIds) {
+            if ($placement->character_sprite_id) {
+                return isset($ownedSpriteIds[$placement->character_sprite_id]);
+            }
+
+            if (!$placement->item_id) {
+                return false;
+            }
+
+            $item = $items->get($placement->item_id);
+            if (!$item) {
+                return false;
+            }
+
+            return isset($placeableItemIds[$placement->item_id])
+                && isset($furnitureTypes[$item->placement_type]);
+        })->values();
     }
 }

@@ -68,6 +68,11 @@ class HomesteadEditorController extends Controller
             'layout' => $layout,
         ], Auth::user(), $room)) {
             flash($settings['save_message'])->success();
+
+            $dropped = $service->getLastDroppedPlacementCount();
+            if ($dropped > 0) {
+                flash('Removed ' . $dropped . ' placement' . ($dropped === 1 ? '' : 's') . ' that are no longer valid for this space.')->warning();
+            }
         } else {
             $this->flashServiceErrors($service);
         }

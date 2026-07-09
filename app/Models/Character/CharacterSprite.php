@@ -13,7 +13,7 @@ class CharacterSprite extends Model
      * @var array
      */
     protected $fillable = [
-        'character_id', 'sort', 'has_image', 'extension',
+        'character_id', 'name', 'sort', 'has_image', 'extension',
     ];
 
     /**
@@ -59,6 +59,16 @@ class CharacterSprite extends Model
     **********************************************************************************************/
 
     /**
+     * Gets the display name for the sprite.
+     *
+     * @return string
+     */
+    public function getDisplayNameAttribute()
+    {
+        return $this->name ?: 'Sprite #' . $this->id;
+    }
+
+    /**
      * Gets the file directory containing the sprite image.
      *
      * @return string
@@ -66,6 +76,16 @@ class CharacterSprite extends Model
     public function getImageDirectoryAttribute()
     {
         return 'images/character-sprites';
+    }
+
+    /**
+     * Gets the path to the file directory containing the sprite image.
+     *
+     * @return string
+     */
+    public function getImagePathAttribute()
+    {
+        return public_path($this->imageDirectory);
     }
 
     /**
